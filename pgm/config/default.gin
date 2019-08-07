@@ -1,0 +1,9 @@
+seed = 0
+data_dir = './data'
+results_dir = './results/python'
+utility_repaid_1 = 1
+utility_default_1 = -4
+utility_repaid_2 = 1
+utility_default_2 = -10
+score_change_repay = 75
+score_change_default = -150

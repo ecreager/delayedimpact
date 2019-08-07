@@ -1,10 +1,9 @@
 """Reading FICO Data"""
 
 from __future__ import print_function
+import os
 import numpy as np
 import pandas as pd
-
-DATA_DIR = '../'
 
 PERF = 'transrisk_performance_by_race_ssa.csv'
 CDF_BY_RACE = 'transrisk_cdf_by_race_ssa.csv'
@@ -23,9 +22,10 @@ def cleanup_frame(frame):
     return frame
 
 
-def read_totals(data_dir=DATA_DIR):
+def read_totals(data_dir):
     """Read the total number of people of each race"""
-    frame = cleanup_frame(pd.DataFrame.from_csv(data_dir + FILES['overview']))
+    frame = cleanup_frame(pd.DataFrame.from_csv(
+        os.path.join(data_dir, FILES['overview'])))
     return {r: frame[r]['SSA'] for r in frame.columns}
 
 
@@ -55,17 +55,19 @@ def convert_percentiles(idx):
     return np.array(list(map(convert_one, idx)))
 
 
-def parse_data(data_dir=DATA_DIR, filenames=None):
+def parse_data(data_dir, filenames=None):
     """Parse sqf data set."""
     if filenames is None:
         filenames = [FILES['cdf_by_race'], FILES['performance_by_race']]
 
-    cdfs = cleanup_frame(pd.DataFrame.from_csv(data_dir + filenames[0]))
-    performance = 100 - cleanup_frame(pd.DataFrame.from_csv(data_dir + filenames[1]))
+    cdfs = cleanup_frame(pd.DataFrame.from_csv(
+        os.path.join(data_dir, filenames[0])))
+    performance = 100 - cleanup_frame(pd.DataFrame.from_csv(
+        os.path.join(data_dir, filenames[1])))
     return (cdfs / 100., performance / 100.)
 
 
-def get_FICO_data(data_dir=DATA_DIR, do_convert_percentiles=True):
+def get_FICO_data(data_dir, do_convert_percentiles=True):
     """Get FICO data in desired format"""
     data_pair = parse_data(data_dir)
     totals = read_totals(data_dir)
