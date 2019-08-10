@@ -1,0 +1,3 @@
+#!/bin/bash
+python fico_figures.py
+python -m unittest reproducibility_test.py
