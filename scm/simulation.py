@@ -2,6 +2,7 @@
 
 import os
 import pickle
+from typing import Dict
 
 from absl import app
 from absl import flags
@@ -13,30 +14,28 @@ from utils.policy import get_policy
 from utils.data import get_data_args
 
 
-class Simulation:  # pylint: disable=too-few-public-methods,too-many-instance-attributes
+class OneStepSimulation:  # pylint: disable=too-many-instance-attributes
     """Runs simulation for one step of dynamics under Liu et al 2018 SCM."""
     def __init__(self,
-                 f_A,  # stochastic structural eqn for group membership
-                 f_X,  # stochastic structural eqn for indiv scores
-                 f_Y,  # stochastic structural eqn for potential repayment
-                 f_T,  # structural eqn for threshold loan policy
-                 f_Delta,  # structural eqn for indiv score change
-                 f_u,  # structural eqn for individual utility
-                 f_Umathcal,  # structural eqn for avg institutional utility
-                 f_Xtilde,  # structural eqn for next-step individual score
-                 f_muDeltaj,  # structural eqn for per-group avg score change
-                 ):
+                 f_A: se.StructuralEqn,  # stochastic SE for group membership
+                 f_X: se.StructuralEqn,  # stochastic SE for indiv scores
+                 f_Y: se.StructuralEqn,  # stochastic SE for potential repayment
+                 f_T: se.StructuralEqn,  # SE for threshold loan policy
+                 f_Xtilde: se.StructuralEqn,  # SE for indiv score change
+                 f_u: se.StructuralEqn,  # SE for individual utility
+                 f_Umathcal: se.StructuralEqn,  # SE for avg instit. utility
+                 f_Deltaj: se.StructuralEqn,  # SE per-group avg score change
+                 ) -> None:
         self.f_A = f_A
         self.f_X = f_X
         self.f_Y = f_Y
         self.f_T = f_T
-        self.f_Delta = f_Delta
-        self.f_u = f_u
         self.f_Xtilde = f_Xtilde
-        self.f_muDeltaj = f_muDeltaj
+        self.f_u = f_u
+        self.f_Deltaj = f_Deltaj
         self.f_Umathcal = f_Umathcal
 
-    def run(self, num_steps, num_samps):
+    def run(self, num_steps: int, num_samps: int) -> Dict:
         """Run simulation forward for num_steps and return all observables."""
         if num_steps != 1:
             raise ValueError('Only one-step dynamics are currently supported.')
@@ -45,20 +44,18 @@ class Simulation:  # pylint: disable=too-few-public-methods,too-many-instance-at
         X = self.f_X(A)
         Y = self.f_Y(X, A)
         T = self.f_T(X, A)
-        Delta = self.f_Delta(Y, T)
+        Xtilde = self.f_Xtilde(X, Y, T)
         u = self.f_u(Y, T)
-        Xtilde = self.f_Xtilde(X, Delta)
-        muDeltaj = self.f_muDeltaj(Delta, A)
+        Deltaj = self.f_Deltaj(X, Xtilde, A)
         Umathcal = self.f_Umathcal(u)
         return_dict = dict(
             A=A,
             X=X,
-            Y=Y,
+            # Y=Y,  # considered unobserved
             T=T,
-            Delta=Delta,
             u=u,
             Xtilde=Xtilde,
-            muDeltaj=muDeltaj,
+            Deltaj=Deltaj,
             Umathcal=Umathcal,
             )
         return return_dict
@@ -95,14 +92,13 @@ def main(unused_argv):
     f_Y = se.RepayPotentialLoan(*loan_repaid_probs)
     f_T = get_policy(loan_repaid_probs, pis, group_size_ratio, utils, impact,
                      scores_list)
-    f_Delta = se.ScoreChange(*impact)
+    f_Xtilde = se.ScoreUpdate(*impact)
     f_u = se.InstitUtil(*utils)
     f_Umathcal = se.AvgInstitUtil()
-    f_Xtilde = se.NewScore()
-    f_muDeltaj = se.AvgGroupScoreChange()
+    f_Deltaj = se.AvgGroupScoreChange()
 
-    simulation = Simulation(
-        f_A, f_X, f_Y, f_T, f_Delta, f_u, f_Umathcal, f_Xtilde, f_muDeltaj,
+    simulation = OneStepSimulation(
+        f_A, f_X, f_Y, f_T, f_Xtilde, f_u, f_Umathcal, f_Deltaj,
         )
 
     results = simulation.run(num_steps, num_samps)

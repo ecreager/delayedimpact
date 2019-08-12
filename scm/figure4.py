@@ -10,7 +10,7 @@ import gin
 import torch
 from tqdm import tqdm
 
-from simulation import Simulation
+from simulation import OneStepSimulation
 import structural_eqns as se
 from utils.policy import get_policy
 from utils.policy import get_dempar_policy_from_selection_rate
@@ -117,14 +117,13 @@ def get_simulation(
     f_Y = se.RepayPotentialLoan(*loan_repaid_probs)
     f_T = get_policy(loan_repaid_probs, pis, group_size_ratio, utils[0], impact,
                      scores_list)
-    f_Delta = se.ScoreChange(*impact)
+    f_Xtilde = se.ScoreUpdate(*impact)
     f_u = se.InstitUtil(*utils[0])
     f_Umathcal = se.AvgInstitUtil()
-    f_Xtilde = se.NewScore()
-    f_muDeltaj = se.AvgGroupScoreChange()
+    f_Deltaj = se.AvgGroupScoreChange()
 
-    simulation = Simulation(
-        f_A, f_X, f_Y, f_T, f_Delta, f_u, f_Umathcal, f_Xtilde, f_muDeltaj,
+    simulation = OneStepSimulation(
+        f_A, f_X, f_Y, f_T, f_Xtilde, f_u, f_Umathcal, f_Deltaj,
         )
 
     return simulation, data_args
@@ -174,12 +173,12 @@ def main(unused_argv):
         simulation.intervene(f_T=f_T)
         results = simulation.run(1, num_samps)
         check(results)
-        muDeltaA, _ = [mdj.item() for mdj in results['muDeltaj']]
+        DeltaA, _ = [mdj.item() for mdj in results['Deltaj']]
         if (results['A'] != 0).all():  # no members of this group
             UmathcalA = 0.
         else:
             UmathcalA = torch.mean(results['u'][results['A'] == 0]).item()
-        outcome_curve_A.append(muDeltaA)
+        outcome_curve_A.append(DeltaA)
         utility_curve_A.append(UmathcalA)
 
     for selection_rate in tqdm(rate_index_B):
@@ -187,12 +186,12 @@ def main(unused_argv):
         simulation.intervene(f_T=f_T)
         results = simulation.run(1, num_samps)
         check(results)
-        _, muDeltaB = [mdj.item() for mdj in results['muDeltaj']]
+        _, DeltaB = [mdj.item() for mdj in results['Deltaj']]
         if (results['A'] != 1).all():  # no members of this group
             UmathcalB = 0.
         else:
             UmathcalB = torch.mean(results['u'][results['A'] == 1]).item()
-        outcome_curve_B.append(muDeltaB)
+        outcome_curve_B.append(DeltaB)
         utility_curve_B.append(UmathcalB)
 
     outcome_curve_A = np.array(outcome_curve_A)

@@ -84,10 +84,10 @@ class StructuralEqn(ABC):  # TODO(creager): why can't i can't subclass Module?
         return self.forward(*inputs)
 
 
-class ScoreChange(StructuralEqn):
+class ScoreUpdate(StructuralEqn):
     """Individual change in score under Liu et al 2018 SCM.
 
-    Delta = f_Delta(Y, T)
+    Xtilde = f_Xtilde(X, Y, T)
 
     The individual's score {moves up by score_change_repay    }  if Y = 1, T = 1
                            {moves down by score_change_default}  if Y = 0, T = 1
@@ -101,28 +101,16 @@ class ScoreChange(StructuralEqn):
     def sample_exogenous_noise(self, num_samps):
         pass
 
-    def compute_output(self, exogenous_noise, Y, T):  # pylint: disable=arguments-differ
+    def compute_output(self, exogenous_noise, X, Y, T):  # pylint: disable=arguments-differ
         del exogenous_noise  # output is deterministic
         Y = Y.float()
         T = T.float()
-        output = self.score_change_repay ** Y ** T \
+        score_change = self.score_change_repay ** Y ** T \
                 * self.score_change_default ** (1. - Y) ** T \
                 * torch.zeros_like(Y) ** (1. - T)
-        return output
-
-
-class NewScore(StructuralEqn):
-    """Invidual's new score at the next step."""
-
-    # TODO(creager): encorporate bounds [300, 850] into next-step score
-
-    def sample_exogenous_noise(self, num_samps):
-        pass
-
-    def compute_output(self, exogenous_noise, X, Delta):  # pylint: disable=arguments-differ
-        del exogenous_noise  # output is deterministic
-        X_tilde = X + Delta
-        return X_tilde
+        X_next_step = X + score_change
+        X_next_step = torch.clamp(X_next_step, 300., 850.)  # score limits
+        return X_next_step
 
 
 class InstitUtil(StructuralEqn):
@@ -256,12 +244,12 @@ class AvgGroupScoreChange(StructuralEqn):
     def sample_exogenous_noise(self, num_samps):
         pass
 
-    def compute_output(self, exogenous_noise, Deltas, As):  # pylint: disable=arguments-differ
+    def compute_output(self, exogenous_noise, Xs, Xtildes, As):  # pylint: disable=arguments-differ
         """Compute avg score change per group
 
-        Assumes Deltas and As are batches of observations."""
-        group_0_avg_delta = torch.mean(Deltas[As == 0])
-        group_1_avg_delta = torch.mean(Deltas[As == 1])
+        Assumes Xs, Xtildes, and As are batches of observations."""
+        group_0_avg_delta = torch.mean(Xtildes[As == 0] - Xs[As == 0])
+        group_1_avg_delta = torch.mean(Xtildes[As == 1] - Xs[As == 1])
         return group_0_avg_delta, group_1_avg_delta
 
 
