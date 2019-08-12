@@ -63,13 +63,11 @@ class Simulation:  # pylint: disable=too-few-public-methods,too-many-instance-at
             )
         return return_dict
 
-    # TODO(creager): possibly add intervene function
+    def intervene(self, **kwargs):
+        """Update attributes via intervention."""
+        for k, v in kwargs.items():
+            setattr(self, k, v)
 
-FLAGS = flags.FLAGS
-flags.DEFINE_string(
-    'gin_file', './config/one-quarter.gin', 'Path of config file.')
-flags.DEFINE_multi_string(
-    'gin_param', None, 'Newline separated list of Gin parameter bindings.')
 
 def main(unused_argv):
     """Produces figures from Liu et al 2018 and save results."""
@@ -87,7 +85,7 @@ def main(unused_argv):
 
     torch.manual_seed(seed)
 
-    inv_cdfs, loan_repaid_probs, pis, group_size_ratio, scores_list = \
+    inv_cdfs, loan_repaid_probs, pis, group_size_ratio, scores_list, _ = \
             get_data_args()
     utils = (utility_default, utility_repay)
     impact = (score_change_default, score_change_repay)
@@ -128,4 +126,10 @@ def main(unused_argv):
 
 
 if __name__ == "__main__":
+    FLAGS = flags.FLAGS
+    flags.DEFINE_string(
+        'gin_file', './config/one-quarter.gin', 'Path of config file.')
+    flags.DEFINE_multi_string(
+        'gin_param', None, 'Newline separated list of Gin parameter bindings.')
+
     app.run(main)

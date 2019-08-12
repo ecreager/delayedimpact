@@ -22,14 +22,6 @@ def get_data_args(data_dir=gin.REQUIRED):
     repay_B = performance['White']
     repay_A = performance['Black']
 
-    inv_cdf_series = [
-        pd.Series(cdfs[key].index.values, index=cdfs[key].values)
-        for key in ('Black', 'White')
-        ]
-    inv_cdf_indices = [
-        ics.index for ics in inv_cdf_series
-        ]
-
     scores = cdfs.index
     scores_list = scores.tolist()
 
@@ -49,12 +41,7 @@ def get_data_args(data_dir=gin.REQUIRED):
         ]
 
     # to get score at a given probabilities
-    idx_A, idx_B = inv_cdf_indices
-    srs_A, srs_B = inv_cdf_series
-    inv_cdfs = [
-        lambda i: srs_A[idx_A[idx_A.get_loc(i, method='nearest')]],
-        lambda i: srs_B[idx_B[idx_B.get_loc(i, method='nearest')]],
-        ]
+    inv_cdfs = get_inv_cdf_fns(cdfs)
 
     # get probability mass functions of each group
     pi_A = get_pmf(cdf_A)
@@ -65,4 +52,26 @@ def get_data_args(data_dir=gin.REQUIRED):
     group_ratio = np.array((totals["Black"], totals["White"]))
     group_size_ratio = group_ratio/group_ratio.sum()
 
-    return inv_cdfs, loan_repaid_probs, pis, group_size_ratio, scores_list
+    rate_indices = (list(reversed(1 - cdf_A)), list(reversed(1 - cdf_B)))
+
+    return inv_cdfs, loan_repaid_probs, pis, group_size_ratio, scores_list, \
+            rate_indices
+
+
+def get_inv_cdf_fns(cdfs):
+    """Convert pd.DataFrame of cdfs into list of inverse cdf lambda fns."""
+    inv_cdf_series = [
+        pd.Series(cdfs[key].index.values, index=cdfs[key].values)
+        for key in ('Black', 'White')
+        ]
+    inv_cdf_indices = [
+        ics.index for ics in inv_cdf_series
+        ]
+    idx_A, idx_B = inv_cdf_indices
+    srs_A, srs_B = inv_cdf_series
+    inv_cdfs = [
+        lambda i: srs_A[idx_A[idx_A.get_loc(i, method='nearest')]],
+        lambda i: srs_B[idx_B[idx_B.get_loc(i, method='nearest')]],
+        ]
+
+    return inv_cdfs

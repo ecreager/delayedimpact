@@ -114,6 +114,8 @@ class ScoreChange(StructuralEqn):
 class NewScore(StructuralEqn):
     """Invidual's new score at the next step."""
 
+    # TODO(creager): encorporate bounds [300, 850] into next-step score
+
     def sample_exogenous_noise(self, num_samps):
         pass
 
@@ -166,12 +168,13 @@ class BernoulliStructuralEqn(StructuralEqn):
 
     def compute_output(self, exogenous_noise, *inputs):
         bernoulli_parameter = self.bernoulli_parameter_fn(*inputs)
-        log = torch.log
+        #log = torch.log
+        EPS = 1e-8
+        log = lambda x: torch.log(torch.clamp(x, EPS, 1.))  # numer. stable log
         output = ((
             log(bernoulli_parameter) - log(1. - bernoulli_parameter) + \
             log(exogenous_noise) - log(1. - exogenous_noise)) \
             > 0.5).int()  # Gumbel-max trick
-        # TODO(creager): check numerical stability of this operation
         return output
 
 
@@ -198,7 +201,7 @@ class InvidScore(StructuralEqn):
 
     def compute_output(self, exogenous_noise, A):  # pylint: disable=arguments-differ
         A = A.float()
-        # TODO(creager): make self.cdf_X_group_J take tensor input
+        # TODO(creager): better batching - self.cdf_X_group_J takes tensor input
         map_inv_cdf = lambda f, u: torch.tensor([f(uu) for uu in u])
         output = map_inv_cdf(self.cdf_X_group_1, exogenous_noise) ** A \
                 * map_inv_cdf(self.cdf_X_group_0, exogenous_noise) ** (1. - A)
