@@ -61,6 +61,7 @@ def get_simulation(
 
 
 
+#@profile
 def main(unused_argv):
     """Get results by sweeping inverventions"""
     del unused_argv

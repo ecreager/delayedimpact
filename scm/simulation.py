@@ -36,6 +36,7 @@ class OneStepSimulation:  # pylint: disable=too-many-instance-attributes
         self.f_Deltaj = f_Deltaj
         self.f_Umathcal = f_Umathcal
 
+    #@profile
     def run(self, num_steps: int, num_samps: int) -> Dict:
         """Run simulation forward for num_steps and return all observables."""
         if num_steps != 1:
@@ -66,7 +67,7 @@ class OneStepSimulation:  # pylint: disable=too-many-instance-attributes
         for k, v in kwargs.items():
             setattr(self, k, v)
 
-
+#@profile
 def main(unused_argv):
     """Produces figures from Liu et al 2018 and save results."""
     del unused_argv
@@ -86,6 +87,8 @@ def main(unused_argv):
 
     inv_cdfs, loan_repaid_probs, pis, group_size_ratio, scores_list, _ = \
             get_data_args()
+#    import pdb
+#    pdb.set_trace()
     utils = (utility_default, utility_repay)
     impact = (score_change_default, score_change_repay)
     prob_A_equals_1 = group_size_ratio[-1]

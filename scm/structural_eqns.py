@@ -189,10 +189,9 @@ class InvidScore(StructuralEqn):
 
     def compute_output(self, exogenous_noise, A):  # pylint: disable=arguments-differ
         A = A.float()
-        # TODO(creager): better batching - self.cdf_X_group_J takes tensor input
-        map_inv_cdf = lambda f, u: torch.tensor([f(uu) for uu in u])
-        output = map_inv_cdf(self.cdf_X_group_1, exogenous_noise) ** A \
-                * map_inv_cdf(self.cdf_X_group_0, exogenous_noise) ** (1. - A)
+        exogenous_noise = exogenous_noise.numpy()
+        output = self.cdf_X_group_1(exogenous_noise) ** A \
+                * self.cdf_X_group_0(exogenous_noise) ** (1. - A)
         return output
 
 
@@ -212,10 +211,9 @@ class RepayPotentialLoan(BernoulliStructuralEqn):
 
     def bernoulli_parameter_fn(self, X, A):  # pylint: disable=arguments-differ
         A = A.float()
-        map_p_repay = lambda f, u: torch.tensor([f(uu) for uu in u])
-        output = \
-                map_p_repay(self.prob_repayment_given_group_1, X) ** A \
-                * map_p_repay(self.prob_repayment_given_group_0, X) ** (1. - A)
+        X = X.numpy()
+        output = self.prob_repayment_given_group_1(X) ** A \
+                * self.prob_repayment_given_group_0(X) ** (1. - A)
         return output
 
 

@@ -1,9 +1,24 @@
 """Utilities for loading data and formatting relevant distns."""
+from typing import Callable, Iterable
+
 import gin
 import numpy as np
 import pandas as pd
 
 import fico
+
+Index = pd.Index
+Array = np.ndarray
+DataFrame = pd.DataFrame
+
+
+def find_nearest_indices(idx: Index, targets: Array) -> Array:
+    """Convert 1d array into array of nearest index values."""
+    idx = np.asarray(idx)
+    idx_ = np.expand_dims(idx, -1)
+    targets = np.expand_dims(targets, 0)
+    i = (np.abs(idx_ - targets)).argmin(axis=0)
+    return idx[i]
 
 @gin.configurable
 def get_data_args(data_dir=gin.REQUIRED):
@@ -34,10 +49,28 @@ def get_data_args(data_dir=gin.REQUIRED):
             pis[score+1] = cdf[score+1] - cdf[score]
         return pis
 
-    # to get loan repay probabilities for a given score
+  # to get (batchable) loan repay probabilities for a given score
+    def loan_repaid_probs_factory(
+            repay_df: DataFrame
+        ) -> Iterable[Callable[[Array], Array]]:
+        """Given performance pd.DataFrame, construct mapping from X to p(Y|X)"""
+
+        def repaid_probs_fn(query_scores: Array) -> Array:
+            if isinstance(query_scores, np.ndarray):
+                nearest_scores = find_nearest_indices(scores, query_scores)
+                return repay_df[nearest_scores].values
+
+            query_score = query_scores
+            nearest_score = scores[
+                scores.get_loc(query_score, method='nearest')
+                ]
+            return repay_df[nearest_score]
+
+        return repaid_probs_fn
+
     loan_repaid_probs = [
-        lambda i: repay_A[scores[scores.get_loc(i, method='nearest')]],
-        lambda i: repay_B[scores[scores.get_loc(i, method='nearest')]]
+        loan_repaid_probs_factory(repay_A),
+        loan_repaid_probs_factory(repay_B)
         ]
 
     # to get score at a given probabilities
@@ -58,20 +91,32 @@ def get_data_args(data_dir=gin.REQUIRED):
             rate_indices
 
 
-def get_inv_cdf_fns(cdfs):
-    """Convert pd.DataFrame of cdfs into list of inverse cdf lambda fns."""
-    inv_cdf_series = [
-        pd.Series(cdfs[key].index.values, index=cdfs[key].values)
-        for key in ('Black', 'White')
-        ]
-    inv_cdf_indices = [
-        ics.index for ics in inv_cdf_series
-        ]
-    idx_A, idx_B = inv_cdf_indices
-    srs_A, srs_B = inv_cdf_series
+def get_inv_cdf_fns(cdfs: DataFrame) -> Iterable[Callable[[Array], Array]]:
+    """Convert DataFrame of cdfs into list of (batched) inv. cdf lambda fns."""
+
+    def inv_cdf_factory(
+            cdfs_df: DataFrame, key: str
+        ) -> Callable[[Array], Array]:
+        """Given cdfs pd.DataFrame & key=A, make mapping from P(Y|X,A) to X"""
+        series = pd.Series(cdfs_df[key].index.values, index=cdfs[key].values)
+        index = series.index
+
+        def repaid_probs_fn(query_probs: Array) -> Array:
+            if isinstance(query_probs, np.ndarray):
+                nearest_scores = find_nearest_indices(index, query_probs)
+                return series[nearest_scores].values
+
+            query_prob = query_probs
+            nearest_prob = index[
+                index.get_loc(query_prob, method='nearest')
+                ]
+            return series[nearest_prob]
+
+        return repaid_probs_fn
+
     inv_cdfs = [
-        lambda i: srs_A[idx_A[idx_A.get_loc(i, method='nearest')]],
-        lambda i: srs_B[idx_B[idx_B.get_loc(i, method='nearest')]],
+        inv_cdf_factory(cdfs, 'Black'),
+        inv_cdf_factory(cdfs, 'White')
         ]
 
     return inv_cdfs
