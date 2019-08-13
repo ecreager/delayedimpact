@@ -1,8 +1,9 @@
-"""Reproduce figure 4 using empirical samples from the SCM."""
+"""Plot results under credit score intervention."""
 
 import os
-import sys
 import pickle
+import sys
+from typing import Dict
 
 from absl import app
 from absl import flags
@@ -11,7 +12,6 @@ import gin
 import torch
 from tqdm import tqdm
 
-from simulation import OneStepSimulation
 import structural_eqns as se
 from utils.data import get_data_args
 from utils.plots import plot_figure4
@@ -21,9 +21,68 @@ from utils.policy import get_eqopp_policy_from_selection_rate
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string(
-    'gin_file', './config/figure4.gin', 'Path of config file.')
+    'gin_file', './config/credit_score_intervention.gin',
+    'Path of config file.')
 flags.DEFINE_multi_string(
     'gin_param', None, 'Newline separated list of Gin parameter bindings.')
+
+
+class OneStepWithThresholdSimulation:  # pylint: disable=too-many-instance-attributes
+    """Runs simulation for one step of dynamics under Liu et al 2018 SCM."""
+    def __init__(self,
+                 f_A: se.StructuralEqn,  # stochastic SE for group membership
+                 f_X: se.StructuralEqn,  # stochastic SE for indiv scores
+                 f_Xhat: se.StructuralEqn,  # SE for credit score threshold
+                 f_Y: se.StructuralEqn,  # stochastic SE for potential repayment
+                 f_T: se.StructuralEqn,  # SE for threshold loan policy
+                 f_Xtilde: se.StructuralEqn,  # SE for indiv score change
+                 f_u: se.StructuralEqn,  # SE for individual utility
+                 f_Umathcal: se.StructuralEqn,  # SE for avg instit. utility
+                 f_Deltaj: se.StructuralEqn,  # SE per-group avg score change
+                 ) -> None:
+        self.f_A = f_A
+        self.f_X = f_X
+        self.f_Xhat = f_Xhat
+        self.f_Y = f_Y
+        self.f_T = f_T
+        self.f_Xtilde = f_Xtilde
+        self.f_u = f_u
+        self.f_Deltaj = f_Deltaj
+        self.f_Umathcal = f_Umathcal
+
+    def run(self, num_steps: int, num_samps: int) -> Dict:
+        """Run simulation forward for num_steps and return all observables."""
+        if num_steps != 1:
+            raise ValueError('Only one-step dynamics are currently supported.')
+        blank_tensor = torch.zeros(num_samps)
+        A = self.f_A(blank_tensor)
+        X = self.f_X(A)
+        Y = self.f_Y(X, A)
+        Xhat = self.f_Xhat(X)
+        T = self.f_T(Xhat, A)
+        Xtilde = self.f_Xtilde(X, Y, T)
+        u = self.f_u(Y, T)
+        Deltaj = self.f_Deltaj(X, Xtilde, A)
+        Umathcal = self.f_Umathcal(u)
+        return_dict = dict(
+            A=A,
+            X=X,
+            Xhat=Xhat,
+            Y=Y,
+            T=T,
+            u=u,
+            Xtilde=Xtilde,
+            Deltaj=Deltaj,
+            Umathcal=Umathcal,
+            )
+        return return_dict
+
+    def intervene(self, **kwargs):
+        """Update attributes via intervention."""
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+
 
 @gin.configurable
 def get_simulation(
@@ -32,7 +91,8 @@ def get_simulation(
         utility_repay_2=gin.REQUIRED,
         utility_default_2=gin.REQUIRED,
         score_change_repay=gin.REQUIRED,
-        score_change_default=gin.REQUIRED):
+        score_change_default=gin.REQUIRED,
+        score_threshold=gin.REQUIRED):
     """Get a basic one-step simulation going."""
     data_args = get_data_args()
     inv_cdfs, loan_repaid_probs, pis, group_size_ratio, scores_list, \
@@ -45,6 +105,7 @@ def get_simulation(
     prob_A_equals_1 = group_size_ratio[-1]
     f_A = se.IndivGroupMembership(prob_A_equals_1)
     f_X = se.InvidScore(*inv_cdfs)
+    f_Xhat = se.ThresholdScore(score_threshold)
     f_Y = se.RepayPotentialLoan(*loan_repaid_probs)
     f_T = get_policy(loan_repaid_probs, pis, group_size_ratio, utils[0], impact,
                      scores_list)
@@ -53,8 +114,8 @@ def get_simulation(
     f_Umathcal = se.AvgInstitUtil()
     f_Deltaj = se.AvgGroupScoreChange()
 
-    simulation = OneStepSimulation(
-        f_A, f_X, f_Y, f_T, f_Xtilde, f_u, f_Umathcal, f_Deltaj,
+    simulation = OneStepWithThresholdSimulation(
+        f_A, f_X, f_Xhat, f_Y, f_T, f_Xtilde, f_u, f_Umathcal, f_Deltaj,
         )
 
     return simulation, data_args
@@ -85,10 +146,6 @@ def main(unused_argv):
     ############################################################################
     # Outcome and utility curves
     ############################################################################
-    # for top half of figure 4, iterate over selection_rate, find threshold
-    # policy at each SR value, simulate under intervention, and compute average
-    # per-group Delta
-
     def check(results):
         for k, v in results.items():
             if isinstance(v, torch.Tensor):
@@ -185,21 +242,6 @@ def main(unused_argv):
         utility_curves_EO[1].append(Umathcal_at_beta_B)
     utility_curves_EO = np.array(utility_curves_EO)
 
-    if results_dir == 'results/python':  # we can compare with fico_figures.py
-        with open(os.path.join(results_dir, 'figure-4.p'), 'rb') as f:
-            old_results = pickle.load(f)
-
-        # NOTE: for consistency with new results, which omit the top bin
-        del old_results['rate_index_A'][0]
-        del old_results['rate_index_B'][0]
-
-        nd = np.array
-        norm = np.linalg.norm
-        norm_diff = lambda a, b: norm(nd(a) - nd(b))
-
-        assert norm_diff(rate_indices[0], old_results['rate_index_A']) == 0.
-        assert norm_diff(rate_indices[1], old_results['rate_index_B']) == 0.
-
     ############################################################################
     # Plot results
     ############################################################################
@@ -237,6 +279,8 @@ def main(unused_argv):
     results_filename = os.path.join(results_dir, 'results.p')
     with open(results_filename, 'wb') as f:
         _ = pickle.dump(results, f)
+
+    # TODO(creager): possibly change plotting code
 
 if __name__ == "__main__":
     app.run(main)

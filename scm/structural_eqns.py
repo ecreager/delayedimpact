@@ -264,3 +264,15 @@ class AvgInstitUtil(StructuralEqn):
 
         Assumes utilities is a batch of individual utilities."""
         return torch.mean(utilities)
+
+class ThresholdScore(StructuralEqn):
+    """Compute min(X, score_threshold)."""
+    def __init__(self, score_threshold):
+        self.score_threshold = float(score_threshold)
+
+    def sample_exogenous_noise(self, num_samps):
+        pass
+
+    def compute_output(self, exogenous_noise, X):  # pylint: disable=arguments-differ
+        """Threshold X."""
+        return torch.clamp(X, self.score_threshold)

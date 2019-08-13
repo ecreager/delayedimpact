@@ -2,6 +2,7 @@
 
 import os
 import pickle
+import sys
 from typing import Dict
 
 from absl import app
@@ -51,7 +52,7 @@ class OneStepSimulation:  # pylint: disable=too-many-instance-attributes
         return_dict = dict(
             A=A,
             X=X,
-            # Y=Y,  # considered unobserved
+            Y=Y,
             T=T,
             u=u,
             Xtilde=Xtilde,
@@ -73,6 +74,7 @@ def main(unused_argv):
 
     seed = gin.query_parameter('%seed')
     results_dir = gin.query_parameter('%results_dir')
+    results_dir = os.path.normpath(results_dir)
     num_steps = gin.query_parameter('%num_steps')
     num_samps = gin.query_parameter('%num_samps')
     utility_repay = gin.query_parameter('%utility_repay')
@@ -103,10 +105,6 @@ def main(unused_argv):
 
     results = simulation.run(num_steps, num_samps)
 
-    # Finally, write results to disk
-    if not os.path.exists(results_dir):
-        os.makedirs(results_dir)
-
     # add thresholds determined by solver
     policy_name = gin.query_parameter('%policy_name')
     situation = 'situation1' if (utility_default == -4) else 'situation2'
@@ -115,6 +113,19 @@ def main(unused_argv):
         {policy_name: [f_T.threshold_group_0, f_T.threshold_group_1]}
     }
     results['threshes'] = these_thresholds
+
+   # Finally, write results to disk
+    if not os.path.exists(results_dir):
+        os.makedirs(results_dir)
+
+    # for reproducibility, copy command and script contents to results
+    if results_dir not in ('.', 'results/python'):
+        cmd = 'python ' + ' '.join(sys.argv)
+        with open(os.path.join(results_dir, 'command.sh'), 'w') as f:
+            f.write(cmd)
+        this_script = open(__file__, 'r').readlines()
+        with open(os.path.join(results_dir, __file__), 'w') as f:
+            f.write(''.join(this_script))
 
     results_filename = os.path.join(results_dir, 'results.p')
     with open(results_filename, 'wb') as f:

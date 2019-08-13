@@ -1,0 +1,15 @@
+seed = 0
+policy_name = 'maxprof'
+data_dir = './data'
+results_dir = './results/python'
+plot_figure4.basename = 'credit_score_intervention.pdf'
+get_simulation.utility_repay_1 = 1
+get_simulation.utility_default_1 = -4
+get_simulation.utility_repay_2 = 1
+get_simulation.utility_default_2 = -10
+get_simulation.score_change_repay = 75
+get_simulation.score_change_default = -150
+get_simulation.score_threshold = 400
+num_samps = 100
+get_data_args.data_dir = %data_dir
+get_policy.policy_name = %policy_name
