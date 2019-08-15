@@ -122,7 +122,8 @@ def main(unused_argv):
         os.makedirs(results_dir)
 
     # for reproducibility, copy command and script contents to results
-    if results_dir not in ('.', 'results/python'):
+    DEFAULT_RESULTS_DIR = '/scratch/gobi1/creager/delayedimpact'
+    if results_dir not in ('.', 'results/python', DEFAULT_RESULTS_DIR):
         cmd = 'python ' + ' '.join(sys.argv)
         with open(os.path.join(results_dir, 'command.sh'), 'w') as f:
             f.write(cmd)
@@ -134,6 +135,9 @@ def main(unused_argv):
     with open(results_filename, 'wb') as f:
         _ = pickle.dump(results, f)
 
+    # Finally, write gin config to disk
+    with open(os.path.join(results_dir, 'config.gin'), 'w') as f:
+        f.write(gin.operative_config_str())
 
 if __name__ == "__main__":
     FLAGS = flags.FLAGS

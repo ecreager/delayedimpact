@@ -1,7 +1,7 @@
 seed = 0
 policy_name = 'maxprof'
 data_dir = './data'
-results_dir = './results/python'
+results_dir = '/scratch/gobi1/creager/delayedimpact'
 plot_figure4.basename = 'credit_score_intervention.pdf'
 get_simulation.utility_repay_1 = 1
 get_simulation.utility_default_1 = -4

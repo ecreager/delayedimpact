@@ -1,6 +1,6 @@
 seed = 0
 data_dir = './data'
-results_dir = './results/python'
+results_dir = '/scratch/gobi1/creager/delayedimpact'
 utility_repay_1 = 1
 utility_default_1 = -4
 utility_repay_2 = 1
