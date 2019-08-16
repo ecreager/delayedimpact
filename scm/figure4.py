@@ -19,37 +19,26 @@ from utils.policy import get_policy
 from utils.policy import get_dempar_policy_from_selection_rate
 from utils.policy import get_eqopp_policy_from_selection_rate
 
-FLAGS = flags.FLAGS
-flags.DEFINE_string(
-    'gin_file', './config/figure4.gin', 'Path of config file.')
-flags.DEFINE_multi_string(
-    'gin_param', None, 'Newline separated list of Gin parameter bindings.')
-
 @gin.configurable
 def get_simulation(
-        utility_repay_1=gin.REQUIRED,
-        utility_default_1=gin.REQUIRED,
-        utility_repay_2=gin.REQUIRED,
-        utility_default_2=gin.REQUIRED,
+        utility_repay=gin.REQUIRED,
+        utility_default=gin.REQUIRED,
         score_change_repay=gin.REQUIRED,
         score_change_default=gin.REQUIRED):
     """Get a basic one-step simulation going."""
     data_args = get_data_args()
     inv_cdfs, loan_repaid_probs, pis, group_size_ratio, scores_list, \
             rate_indices = data_args  # pylint: disable=unused-variable
-    utils = (
-                (utility_default_1, utility_repay_1),
-                (utility_default_2, utility_repay_2),
-        )
+    utils = (utility_default, utility_repay)
     impact = (score_change_default, score_change_repay)
     prob_A_equals_1 = group_size_ratio[-1]
     f_A = se.IndivGroupMembership(prob_A_equals_1)
     f_X = se.InvidScore(*inv_cdfs)
     f_Y = se.RepayPotentialLoan(*loan_repaid_probs)
-    f_T = get_policy(loan_repaid_probs, pis, group_size_ratio, utils[0], impact,
+    f_T = get_policy(loan_repaid_probs, pis, group_size_ratio, utils, impact,
                      scores_list)
     f_Xtilde = se.ScoreUpdate(*impact)
-    f_u = se.InstitUtil(*utils[0])
+    f_u = se.InstitUtil(*utils)
     f_Umathcal = se.AvgInstitUtil()
     f_Deltaj = se.AvgGroupScoreChange()
 
@@ -57,7 +46,7 @@ def get_simulation(
         f_A, f_X, f_Y, f_T, f_Xtilde, f_u, f_Umathcal, f_Deltaj,
         )
 
-    return simulation, data_args
+    return simulation, data_args, utils, impact
 
 
 
@@ -77,7 +66,7 @@ def main(unused_argv):
 
     torch.manual_seed(seed)
 
-    simulation, data_args = get_simulation()
+    simulation, data_args, _, _ = get_simulation()
 
     inv_cdfs, loan_repaid_probs, pis, _, scores, \
             rate_indices = data_args
@@ -245,4 +234,10 @@ def main(unused_argv):
         f.write(gin.operative_config_str())
 
 if __name__ == "__main__":
+    FLAGS = flags.FLAGS
+    flags.DEFINE_string(
+        'gin_file', './config/figure4.gin', 'Path of config file.')
+    flags.DEFINE_multi_string(
+        'gin_param', None, 'Newline separated list of Gin parameter bindings.')
+
     app.run(main)

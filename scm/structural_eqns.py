@@ -199,7 +199,8 @@ class RepayPotentialLoan(BernoulliStructuralEqn):
     """Sample repayment potential of loan (if one were given).
 
     Potential repayment is Bernoulli distributed with probability pi_j(X), where
-    X is the individual's score and A=j is their group membership.
+    X is the individual's score and A=j is their group membership. I.e. we
+    sample Y ~ P(Y|X,A)
     """
 
     def __init__(self,
@@ -214,6 +215,25 @@ class RepayPotentialLoan(BernoulliStructuralEqn):
         X = X.numpy()
         output = self.prob_repayment_given_group_1(X) ** A \
                 * self.prob_repayment_given_group_0(X) ** (1. - A)
+        return output
+
+
+class RepayPotentialLoanGroupBlind(BernoulliStructuralEqn):
+    """Sample repayment potential of loan (if one were given).
+
+    In this case we sample Y ~ P(Y|X), which we denote as group-blind b/c A is
+    not taken into direct consideration.
+    """
+
+    def __init__(self, prob_repayment, *args):
+        """prob_repayment maps score to a prob. of repayment."""
+        del args
+        self.prob_repayment = prob_repayment
+
+    def bernoulli_parameter_fn(self, X):  # pylint: disable=arguments-differ
+        X = X.numpy()
+        output = self.prob_repayment(X)
+        output = torch.tensor(output, dtype=torch.float32)
         return output
 
 

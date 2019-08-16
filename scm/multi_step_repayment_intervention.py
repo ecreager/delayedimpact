@@ -1,9 +1,7 @@
-"""Plot results under credit score intervention."""
-
+"""Intervene by sampling Y from P(Y|X) rather than P(Y|X,A) & run multi-step."""
 import os
 import pickle
 import sys
-from typing import Dict
 
 from absl import app
 from absl import flags
@@ -12,109 +10,12 @@ import gin
 import torch
 from tqdm import tqdm
 
-import structural_eqns as se
-from utils.data import get_data_args
+from multi_step_simulation import get_simulation
+from utils.data import  get_marginal_loan_repaid_probs
 from utils.plots import plot_figure4
 from utils.policy import get_policy
 from utils.policy import get_dempar_policy_from_selection_rate
 from utils.policy import get_eqopp_policy_from_selection_rate
-
-FLAGS = flags.FLAGS
-flags.DEFINE_string(
-    'gin_file', './config/credit_score_intervention.gin',
-    'Path of config file.')
-flags.DEFINE_multi_string(
-    'gin_param', None, 'Newline separated list of Gin parameter bindings.')
-
-
-class OneStepWithThresholdSimulation:  # pylint: disable=too-many-instance-attributes
-    """Runs simulation for one step of dynamics under Liu et al 2018 SCM."""
-    def __init__(self,
-                 f_A: se.StructuralEqn,  # stochastic SE for group membership
-                 f_X: se.StructuralEqn,  # stochastic SE for indiv scores
-                 f_Xhat: se.StructuralEqn,  # SE for credit score threshold
-                 f_Y: se.StructuralEqn,  # stochastic SE for potential repayment
-                 f_T: se.StructuralEqn,  # SE for threshold loan policy
-                 f_Xtilde: se.StructuralEqn,  # SE for indiv score change
-                 f_u: se.StructuralEqn,  # SE for individual utility
-                 f_Umathcal: se.StructuralEqn,  # SE for avg instit. utility
-                 f_Deltaj: se.StructuralEqn,  # SE per-group avg score change
-                 ) -> None:
-        self.f_A = f_A
-        self.f_X = f_X
-        self.f_Xhat = f_Xhat
-        self.f_Y = f_Y
-        self.f_T = f_T
-        self.f_Xtilde = f_Xtilde
-        self.f_u = f_u
-        self.f_Deltaj = f_Deltaj
-        self.f_Umathcal = f_Umathcal
-
-    def run(self, num_steps: int, num_samps: int) -> Dict:
-        """Run simulation forward for num_steps and return all observables."""
-        if num_steps != 1:
-            raise ValueError('Only one-step dynamics are currently supported.')
-        blank_tensor = torch.zeros(num_samps)
-        A = self.f_A(blank_tensor)
-        X = self.f_X(A)
-        Y = self.f_Y(X, A)
-        Xhat = self.f_Xhat(X)
-        T = self.f_T(Xhat, A)
-        Xtilde = self.f_Xtilde(X, Y, T)
-        u = self.f_u(Y, T)
-        Deltaj = self.f_Deltaj(X, Xtilde, A)
-        Umathcal = self.f_Umathcal(u)
-        return_dict = dict(
-            A=A,
-            X=X,
-            Xhat=Xhat,
-            Y=Y,
-            T=T,
-            u=u,
-            Xtilde=Xtilde,
-            Deltaj=Deltaj,
-            Umathcal=Umathcal,
-            )
-        return return_dict
-
-    def intervene(self, **kwargs):
-        """Update attributes via intervention."""
-        for k, v in kwargs.items():
-            setattr(self, k, v)
-
-
-
-@gin.configurable
-def get_simulation(
-        utility_repay=gin.REQUIRED,
-        utility_default=gin.REQUIRED,
-        score_change_repay=gin.REQUIRED,
-        score_change_default=gin.REQUIRED,
-        score_threshold=gin.REQUIRED):
-    """Get a basic one-step simulation going."""
-    data_args = get_data_args()
-    inv_cdfs, loan_repaid_probs, pis, group_size_ratio, scores_list, \
-            rate_indices = data_args  # pylint: disable=unused-variable
-    utils = (utility_default, utility_repay)
-    impact = (score_change_default, score_change_repay)
-    prob_A_equals_1 = group_size_ratio[-1]
-    f_A = se.IndivGroupMembership(prob_A_equals_1)
-    f_X = se.InvidScore(*inv_cdfs)
-    f_Xhat = se.ThresholdScore(score_threshold)
-    f_Y = se.RepayPotentialLoan(*loan_repaid_probs)
-    f_T = get_policy(loan_repaid_probs, pis, group_size_ratio, utils[0], impact,
-                     scores_list)
-    f_Xtilde = se.ScoreUpdate(*impact)
-    f_u = se.InstitUtil(*utils[0])
-    f_Umathcal = se.AvgInstitUtil()
-    f_Deltaj = se.AvgGroupScoreChange()
-
-    simulation = OneStepWithThresholdSimulation(
-        f_A, f_X, f_Xhat, f_Y, f_T, f_Xtilde, f_u, f_Umathcal, f_Deltaj,
-        )
-
-    return simulation, data_args, utils, impact
-
 
 
 def main(unused_argv):
@@ -125,6 +26,7 @@ def main(unused_argv):
     seed = gin.query_parameter('%seed')
     results_dir = gin.query_parameter('%results_dir')
     num_samps = gin.query_parameter('%num_samps')
+    num_steps = gin.query_parameter('%num_steps')
 
     results_dir = os.path.normpath(results_dir)
     if not os.path.exists(results_dir):
@@ -132,11 +34,14 @@ def main(unused_argv):
 
     torch.manual_seed(seed)
 
-    simulation, data_args, _, _ = get_simulation()
-
-    inv_cdfs, loan_repaid_probs, pis, _, scores, \
-            rate_indices = data_args
+    simulation, data_args, utils, impact = get_simulation()
+    inv_cdfs, _, pis, group_size_ratio, scores, rate_indices = data_args
     rate_index_A, rate_index_B = rate_indices
+    marginal_loan_repaid_probs = get_marginal_loan_repaid_probs()
+    f_T_marginal = get_policy(marginal_loan_repaid_probs, pis, group_size_ratio,
+                              utils, impact, scores)
+
+    simulation.intervene(f_T=f_T_marginal)
 
     ############################################################################
     # Outcome and utility curves
@@ -157,26 +62,30 @@ def main(unused_argv):
     for selection_rate in tqdm(rate_index_A):
         f_T = get_dempar_policy_from_selection_rate(selection_rate, inv_cdfs)
         simulation.intervene(f_T=f_T)
-        results = simulation.run(1, num_samps)
+        results = simulation.run(num_steps, num_samps)
         check(results)
         DeltaA, _ = [mdj.item() for mdj in results['Deltaj']]
         if (results['A'] != 0).all():  # no members of this group
             UmathcalA = 0.
         else:
-            UmathcalA = torch.mean(results['u'][results['A'] == 0]).item()
+            batched_A_mask = \
+                torch.unsqueeze(results['A'] == 0, 0).repeat(num_steps, 1)
+            UmathcalA = torch.mean(results['u'][batched_A_mask]).item()
         outcome_curve_A.append(DeltaA)
         utility_curve_A.append(UmathcalA)
 
     for selection_rate in tqdm(rate_index_B):
         f_T = get_dempar_policy_from_selection_rate(selection_rate, inv_cdfs)
         simulation.intervene(f_T=f_T)
-        results = simulation.run(1, num_samps)
+        results = simulation.run(num_steps, num_samps)
         check(results)
         _, DeltaB = [mdj.item() for mdj in results['Deltaj']]
         if (results['A'] != 1).all():  # no members of this group
             UmathcalB = 0.
         else:
-            UmathcalB = torch.mean(results['u'][results['A'] == 1]).item()
+            batched_A_mask = \
+                torch.unsqueeze(results['A'] == 1, 0).repeat(num_steps, 1)
+            UmathcalB = torch.mean(results['u'][batched_A_mask]).item()
         outcome_curve_B.append(DeltaB)
         utility_curve_B.append(UmathcalB)
 
@@ -200,7 +109,7 @@ def main(unused_argv):
         f_T_at_beta_A = get_dempar_policy_from_selection_rate(
             beta_A, inv_cdfs)
         simulation.intervene(f_T=f_T_at_beta_A)
-        results = simulation.run(1, num_samps)
+        results = simulation.run(num_steps, num_samps)
         check(results)
         Umathcal_at_beta_A = results['Umathcal'].item()
         utility_curves_DP[0].append(Umathcal_at_beta_A)
@@ -208,7 +117,7 @@ def main(unused_argv):
         f_T_at_beta_B = get_dempar_policy_from_selection_rate(
             beta_B, inv_cdfs)
         simulation.intervene(f_T=f_T_at_beta_B)
-        results = simulation.run(1, num_samps)
+        results = simulation.run(num_steps, num_samps)
         check(results)
         Umathcal_at_beta_B = results['Umathcal'].item()
         utility_curves_DP[1].append(Umathcal_at_beta_B)
@@ -221,9 +130,9 @@ def main(unused_argv):
         beta_B = rate_index_B[i]
         # get global util results under dempar at selection rate beta_A
         f_T_at_beta_A = get_eqopp_policy_from_selection_rate(
-            beta_A, loan_repaid_probs, pis, scores)
+            beta_A, marginal_loan_repaid_probs, pis, scores)
         simulation.intervene(f_T=f_T_at_beta_A)
-        results = simulation.run(1, num_samps)
+        results = simulation.run(num_steps, num_samps)
         check(results)
         Umathcal_at_beta_A = results['Umathcal'].item()
         utility_curves_EO[0].append(Umathcal_at_beta_A)
@@ -231,7 +140,7 @@ def main(unused_argv):
         f_T_at_beta_B = get_dempar_policy_from_selection_rate(
             beta_B, inv_cdfs)
         simulation.intervene(f_T=f_T_at_beta_B)
-        results = simulation.run(1, num_samps)
+        results = simulation.run(num_steps, num_samps)
         check(results)
         Umathcal_at_beta_B = results['Umathcal'].item()
         utility_curves_EO[1].append(Umathcal_at_beta_B)
@@ -280,7 +189,12 @@ def main(unused_argv):
     with open(os.path.join(results_dir, 'config.gin'), 'w') as f:
         f.write(gin.operative_config_str())
 
-    # TODO(creager): possibly change plotting code
-
 if __name__ == "__main__":
+    FLAGS = flags.FLAGS
+    flags.DEFINE_string(
+        'gin_file', './config/repayment_intervention.gin',
+        'Path of config file.')
+    flags.DEFINE_multi_string(
+        'gin_param', None, 'Newline separated list of Gin parameter bindings.')
+
     app.run(main)
