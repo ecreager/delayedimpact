@@ -3,6 +3,36 @@
 import numpy as np
 import solve_credit as sc
 
+def _plot_cdfs(scores, cdfs, tag='cdfs'):
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+
+    cdf_A = cdfs[0]
+    cdf_B = cdfs[1]
+
+    # plot the threshes
+    _, ax = plt.subplots(figsize=(8, 8))
+    plt.title("")
+    # unpack
+    ax.plot(scores, 1 - cdf_A, label='black', color="black")
+    ax.plot(scores, 1 - cdf_B, label='white', color="grey", alpha=0.4)
+    ax.set_xlabel("score")
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.set_ylim([0, 1])
+    ax.set_xlim([300, 850])
+
+    plt.suptitle(
+        "Thresholds under different institution utility ratios (u-/u+)")
+
+    ax.set_ylabel("Fraction of group above")
+    plt.legend(loc='lower left')
+
+    filename = '/scratch/gobi1/creager/delayedimpact/{}.pdf'.format(tag)
+    plt.savefig(filename)
+
+
 
 def get_thresholds(loan_repaid_probs, pis, group_size_ratio, utils, score_change_fns, scores):
     """get thresholds for all 3 fairness criteria"""
@@ -55,8 +85,10 @@ def get_utility_curve(loan_repay_fns, pis, scores, utils):
     return util
 
 
-def get_utility_curves_dempar(util, cdfs, group_size_ratio, scores):
+def get_utility_curves_dempar(util, cdfs, group_size_ratio, scores, plot=True):
     """compute the institution's utility curve under demographic parity constraint"""
+    if plot:
+        _plot_cdfs(scores, cdfs, 'dempar')
     util_total = np.zeros([2, scores.size])
     cdfs[0] = list(reversed(1 - cdfs[0]))
     cdfs[1] = list(reversed(1 - cdfs[1]))
@@ -88,7 +120,9 @@ def get_utility_curves_eqopp(util, loan_repaid_probs, pis, group_size_ratio, sco
         cdfs[group, 0] = rescaled_pis[group, 0]
         for x in range(1, n_scores):
             cdfs[group, x] = rescaled_pis[group, x] + cdfs[group, x - 1]
-    return get_utility_curves_dempar(util, cdfs, group_size_ratio, scores)
+    _plot_cdfs(scores, cdfs, 'eqopp')
+    return get_utility_curves_dempar(util, cdfs, group_size_ratio, scores,
+            plot=False)
 
 
 def get_rhos(loan_repaid_probs, scores):

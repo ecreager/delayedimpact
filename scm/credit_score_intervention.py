@@ -15,6 +15,7 @@ from tqdm import tqdm
 import structural_eqns as se
 from utils.data import get_data_args
 from utils.plots import plot_figure4
+from utils.plots import plot_new_plot
 from utils.policy import get_policy
 from utils.policy import get_dempar_policy_from_selection_rate
 from utils.policy import get_eqopp_policy_from_selection_rate
@@ -102,10 +103,10 @@ def get_simulation(
     f_X = se.InvidScore(*inv_cdfs)
     f_Xhat = se.ThresholdScore(score_threshold)
     f_Y = se.RepayPotentialLoan(*loan_repaid_probs)
-    f_T = get_policy(loan_repaid_probs, pis, group_size_ratio, utils[0], impact,
+    f_T = get_policy(loan_repaid_probs, pis, group_size_ratio, utils, impact,
                      scores_list)
     f_Xtilde = se.ScoreUpdate(*impact)
-    f_u = se.InstitUtil(*utils[0])
+    f_u = se.InstitUtil(*utils)
     f_Umathcal = se.AvgInstitUtil()
     f_Deltaj = se.AvgGroupScoreChange()
 
@@ -156,6 +157,7 @@ def main(unused_argv):
     #       evaluting results at a different selection_rate grid.
     for selection_rate in tqdm(rate_index_A):
         f_T = get_dempar_policy_from_selection_rate(selection_rate, inv_cdfs)
+        #print(selection_rate, f_T.threshold_group_0, f_T.threshold_group_1)
         simulation.intervene(f_T=f_T)
         results = simulation.run(1, num_samps)
         check(results)
@@ -202,6 +204,9 @@ def main(unused_argv):
         simulation.intervene(f_T=f_T_at_beta_A)
         results = simulation.run(1, num_samps)
         check(results)
+        empirical_beta_A = results['T'][results['A'] == 0].float().mean().item()
+        print('DP', 'A', beta_A, f_T_at_beta_A.threshold_group_0,
+                f_T_at_beta_A.threshold_group_1, empirical_beta_A)
         Umathcal_at_beta_A = results['Umathcal'].item()
         utility_curves_DP[0].append(Umathcal_at_beta_A)
         # get global util results under dempar at selection rate beta_B
@@ -210,6 +215,9 @@ def main(unused_argv):
         simulation.intervene(f_T=f_T_at_beta_B)
         results = simulation.run(1, num_samps)
         check(results)
+        empirical_beta_B = results['T'][results['A'] == 1].float().mean().item()
+        print('DP', 'B', beta_B, f_T_at_beta_B.threshold_group_0,
+                f_T_at_beta_B.threshold_group_1, empirical_beta_B)
         Umathcal_at_beta_B = results['Umathcal'].item()
         utility_curves_DP[1].append(Umathcal_at_beta_B)
     utility_curves_DP = np.array(utility_curves_DP)
@@ -225,14 +233,27 @@ def main(unused_argv):
         simulation.intervene(f_T=f_T_at_beta_A)
         results = simulation.run(1, num_samps)
         check(results)
+        # TODO: fix this
+        empirical_beta_A = results['T'][
+                (results['A'] == 1) & (results['Y'] == 1)
+                ].float().mean().item()
+        print('EO', 'A', beta_A, f_T_at_beta_A.threshold_group_0,
+                f_T_at_beta_A.threshold_group_1, empirical_beta_A)
         Umathcal_at_beta_A = results['Umathcal'].item()
         utility_curves_EO[0].append(Umathcal_at_beta_A)
         # get global util results under dempar at selection rate beta_B
-        f_T_at_beta_B = get_dempar_policy_from_selection_rate(
-            beta_B, inv_cdfs)
+        f_T_at_beta_B = get_eqopp_policy_from_selection_rate(
+            beta_B, loan_repaid_probs, pis, scores, A=False)
         simulation.intervene(f_T=f_T_at_beta_B)
         results = simulation.run(1, num_samps)
         check(results)
+        empirical_beta_B = results['T'][
+                (results['A'] == 1) & (results['Y'] == 1)
+                ].float().mean().item()
+        print('EO', 'B', beta_B, f_T_at_beta_B.threshold_group_0,
+                f_T_at_beta_B.threshold_group_1, empirical_beta_B)
+#        import pdb
+#        pdb.set_trace()
         Umathcal_at_beta_B = results['Umathcal'].item()
         utility_curves_EO[1].append(Umathcal_at_beta_B)
     utility_curves_EO = np.array(utility_curves_EO)
@@ -241,6 +262,19 @@ def main(unused_argv):
     # Plot results
     ############################################################################
     plot_figure4(
+        rate_index_A,
+        rate_index_B,
+        outcome_curve_A,
+        outcome_curve_B,
+        utility_curves_MP,
+        utility_curves_DP,
+        utility_curves_EO,
+        results_dir)
+
+    threshold = gin.query_parameter('get_simulation.score_threshold')
+    plot_new_plot(
+        threshold,
+        scores,
         rate_index_A,
         rate_index_B,
         outcome_curve_A,

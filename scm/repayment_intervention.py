@@ -42,7 +42,7 @@ def main(unused_argv):
     rate_index_A, rate_index_B = rate_indices
     marginal_loan_repaid_probs = get_marginal_loan_repaid_probs()
     f_T_marginal = get_policy(marginal_loan_repaid_probs, pis, group_size_ratio,
-                              utils[0], impact, scores)
+                              utils, impact, scores)
 
     simulation.intervene(f_T=f_T_marginal)
 
