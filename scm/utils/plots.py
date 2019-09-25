@@ -108,23 +108,23 @@ def plot_figure4(
 
     plt.savefig(os.path.join(results_dir, basename))
 
-
-
-
 @gin.configurable
 def plot_new_plot(
         thresh,
         scores,
-        rate_index_A,
-        rate_index_B,
         outcome_curveA,
         outcome_curveB,
         utility_curves_MP,
         utility_curves_DP,
         utility_curves_EO,
+        threshes_MP,
+        threshes_DP,
+        threshes_EO,
         results_dir,
         basename_a='new-plot-a.pdf',
-        basename_b='new-plot-a.pdf'
+        basename_b='new-plot-a.pdf',
+        basename_c='new-plot-c.pdf',
+        basename_d='new-plot-d.pdf',
         ):
     """Reproduce figure 4 given computed results."""
     import matplotlib.pyplot as plt
@@ -157,83 +157,90 @@ def plot_new_plot(
         ax.axhline(0, LineStyle='-', color='grey', alpha=0.4)
         return ax
 
-    ax = get_ax()
-
     # reverse scores to match rate indices
     scores = np.flipud(scores)
 
-    # get thresh as selection rate
-    idx_ = np.expand_dims(scores, -1)
-    targets = np.expand_dims([thresh], 0)
-    i = int((np.abs(idx_ - targets)).argmin(axis=0))
-    thresh_idx = rate_index_A[i]  # the selection rate this thresh achieves
-
+    ###########################################################################
+    # FIRST SUBFIGURE
+    ###########################################################################
+    ax = get_ax()
     ax.plot(scores, outcome_curveA, color='black',
             label=r'$\Delta_{\textrm{Black}}$')
     plt.axvline(
         x=thresh, ymin=-70, ymax=50, linestyle='--', color='c',
         label=r'$\tau_{\textrm{CB}}=600$')
-    #ax.set_xlabel('selection rate')
     ax.set_xlabel(r'$\tau_{\textrm{Black}}$', fontsize=FONTSIZE)
-
-
-
     xlabel = r'$\tau_{\textrm{Black}}$'
     ylabel = 'Avg score change'
-#    ylabel = (
-#        '$E_{p^{do(f_{\hat X} \\rightarrow \hat f_{\hat X}, f_{T}'
-#        '\\rightarrow \hat f_T )}}'
-#        '[\Delta_{Black}]$')
     ax.set_xlabel(xlabel, fontsize=FONTSIZE)
     ax.set_ylabel(ylabel, fontsize=FONTSIZE)
     ax.legend(loc='upper left', prop=dict(size=int(FONTSIZE / 2.5)))
-    #ax.set_title('Black')
     ax.set_ylim([-70, 50])
-    #ax.set_xlim([0, 1])
     ax.set_xlim([300, 850])
     plt.tight_layout()
-
     plt.savefig(os.path.join(results_dir, basename_a))
     plt.close()
 
+    ###########################################################################
+    # SECOND SUBFIGURE
+    ###########################################################################
     ax = get_ax()
-
-#    ax[0, 1].plot(rate_index_B, outcome_curveB, color='black')
-#    ax[0, 1].set_xlabel('selection rate')
-#    ax[0, 1].set_title('White')
-#    ax[0, 1].set_ylim([-70, 50])
-#    ax[0, 1].set_xlim([0, 1])
-
-    ax.plot(scores, utility_curves_MP[0], label='MaxProf')
-    ax.plot(scores, utility_curves_DP[0], label='DemPar')
-    ax.plot(scores, utility_curves_EO[0], label='EqOpp')
+    ax.plot(scores, outcome_curveB, color='black',
+            label=r'$\Delta_{\textrm{White}}$')
     plt.axvline(
         x=thresh, ymin=-70, ymax=50, linestyle='--', color='c',
         label=r'$\tau_{\textrm{CB}}=600$')
-    #ax.set_xlabel('selection rate')
+    ax.set_xlabel(r'$\tau_{\textrm{Black}}$', fontsize=FONTSIZE)
+    xlabel = r'$\tau_{\textrm{White}}$'
+    ylabel = 'Avg score change'
+    ax.set_xlabel(xlabel, fontsize=FONTSIZE)
+    ax.set_ylabel(ylabel, fontsize=FONTSIZE)
+    ax.legend(loc='upper left', prop=dict(size=int(FONTSIZE / 2.5)))
+    ax.set_ylim([-70, 50])
+    ax.set_xlim([300, 850])
+    plt.tight_layout()
+    plt.savefig(os.path.join(results_dir, basename_b))
+    plt.close()
+
+
+    ###########################################################################
+    # THIRD SUBFIGURE
+    ###########################################################################
+    ax = get_ax()
+    ax.plot(threshes_MP[0], utility_curves_MP[0], label='MaxProf')
+    ax.plot(threshes_DP[0], utility_curves_DP[0], label='DemPar')
+    ax.plot(threshes_EO[0], utility_curves_EO[0], label='EqOpp')
+    plt.axvline(
+        x=thresh, ymin=-70, ymax=50, linestyle='--', color='c',
+        label=r'$\tau_{\textrm{CB}}=600$')
     ax.set_ylim([-1, 1])
     ylabel = 'Institutional profit'
-#    ylabel = (
-#        '$E_{p^{do(f_{\hat X} \\rightarrow \hat f_{\hat X}, f_{T}'
-#        '\\rightarrow \hat f_T )}}'
-#        '[\mathcal{U}]$'
-#        )
+    xlabel = r'$\tau_{\textrm{Black}}$'
     ax.set_xlabel(xlabel, fontsize=FONTSIZE)
     ax.set_ylabel(ylabel, fontsize=FONTSIZE)
     ax.legend(prop=dict(size=int(FONTSIZE / 3.0)))
-    #ax.set_xlim([0, 1])
     ax.set_xlim([300, 850])
     plt.tight_layout()
+    plt.savefig(os.path.join(results_dir, basename_c))
+    plt.close()
 
-#    ax[1, 1].plot(rate_index_B, utility_curves_MP[1], label='MP')
-#    ax[1, 1].plot(rate_index_B, utility_curves_DP[1], label='DP')
-#    ax[1, 1].plot(rate_index_B, utility_curves_EO[1], label='EO')
-#    ax[1, 1].set_xlabel('selection rate')
-#    ax[1, 1].set_ylabel('expected profit')
-#    ax[1, 1].set_ylim([-1, 1])
-#    ax[1, 1].legend()
-#    ax[1, 1].set_xlim([0, 1])
-#    plt.suptitle("")
-
-    plt.savefig(os.path.join(results_dir, basename_b))
+    ###########################################################################
+    # FOURTH SUBFIGURE
+    ###########################################################################
+    ax = get_ax()
+    ax.plot(threshes_MP[1], utility_curves_MP[1], label='MaxProf')
+    ax.plot(threshes_DP[1], utility_curves_DP[1], label='DemPar')
+    ax.plot(threshes_EO[1], utility_curves_EO[1], label='EqOpp')
+    plt.axvline(
+        x=thresh, ymin=-70, ymax=50, linestyle='--', color='c',
+        label=r'$\tau_{\textrm{CB}}=600$')
+    ax.set_ylim([-1, 1])
+    ylabel = 'Institutional profit'
+    xlabel = r'$\tau_{\textrm{White}}$'
+    ax.set_xlabel(xlabel, fontsize=FONTSIZE)
+    ax.set_ylabel(ylabel, fontsize=FONTSIZE)
+    ax.legend(prop=dict(size=int(FONTSIZE / 3.0)))
+    ax.set_xlim([300, 850])
+    plt.tight_layout()
+    plt.savefig(os.path.join(results_dir, basename_d))
     plt.close()

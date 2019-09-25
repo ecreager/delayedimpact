@@ -83,8 +83,6 @@ class OneStepWithThresholdSimulation:  # pylint: disable=too-many-instance-attri
         for k, v in kwargs.items():
             setattr(self, k, v)
 
-
-
 @gin.configurable
 def get_simulation(
         utility_repay=gin.REQUIRED,
@@ -149,6 +147,9 @@ def main(unused_argv):
                     msg = 'NaN spotted in results for variable ' + k
                     raise ValueError(msg)
 
+    selection_rates_MP = [[], []]  # empirical selection rates
+    threshes_MP = [[], []]  # empirical in-group threshes
+    out_threshes_MP = [[], []]  # empirical out-group threshes
     outcome_curve_A = []
     outcome_curve_B = []
     utility_curve_A = []
@@ -157,10 +158,15 @@ def main(unused_argv):
     #       evaluting results at a different selection_rate grid.
     for selection_rate in tqdm(rate_index_A):
         f_T = get_dempar_policy_from_selection_rate(selection_rate, inv_cdfs)
+        threshes_MP[0].append(f_T.threshold_group_0)
+        out_threshes_MP[0].append(f_T.threshold_group_1)
         #print(selection_rate, f_T.threshold_group_0, f_T.threshold_group_1)
         simulation.intervene(f_T=f_T)
         results = simulation.run(1, num_samps)
         check(results)
+        empirical_selection_rate_0 = \
+                results['T'][results['A'] == 0].float().mean().item()
+        selection_rates_MP[0].append(empirical_selection_rate_0)
         DeltaA, _ = [mdj.item() for mdj in results['Deltaj']]
         if (results['A'] != 0).all():  # no members of this group
             UmathcalA = 0.
@@ -171,9 +177,14 @@ def main(unused_argv):
 
     for selection_rate in tqdm(rate_index_B):
         f_T = get_dempar_policy_from_selection_rate(selection_rate, inv_cdfs)
+        threshes_MP[1].append(f_T.threshold_group_1)
+        out_threshes_MP[1].append(f_T.threshold_group_0)
         simulation.intervene(f_T=f_T)
         results = simulation.run(1, num_samps)
         check(results)
+        empirical_selection_rate_1 = \
+                results['T'][results['A'] == 1].float().mean().item()
+        selection_rates_MP[1].append(empirical_selection_rate_1)
         _, DeltaB = [mdj.item() for mdj in results['Deltaj']]
         if (results['A'] != 1).all():  # no members of this group
             UmathcalB = 0.
@@ -195,65 +206,72 @@ def main(unused_argv):
 
     # collect DemPar results
     utility_curves_DP = [[], []]
+    selection_rates_DP = [[], []]
+    threshes_DP = [[], []]  # empirical in-group threshes
+    out_threshes_DP = [[], []]  # empirical out-group threshes
     for i in tqdm(range(len(rate_index_A))):
         beta_A = rate_index_A[i]
         beta_B = rate_index_B[i]
         # get global util results under dempar at selection rate beta_A
         f_T_at_beta_A = get_dempar_policy_from_selection_rate(
             beta_A, inv_cdfs)
+        threshes_DP[0].append(f_T_at_beta_A.threshold_group_0)
+        out_threshes_DP[0].append(f_T_at_beta_A.threshold_group_1)
         simulation.intervene(f_T=f_T_at_beta_A)
         results = simulation.run(1, num_samps)
         check(results)
-        empirical_beta_A = results['T'][results['A'] == 0].float().mean().item()
-        print('DP', 'A', beta_A, f_T_at_beta_A.threshold_group_0,
-                f_T_at_beta_A.threshold_group_1, empirical_beta_A)
+        empirical_selection_rate_0 = \
+                results['T'][results['A'] == 0].float().mean().item()
+        selection_rates_DP[0].append(empirical_selection_rate_0)
         Umathcal_at_beta_A = results['Umathcal'].item()
         utility_curves_DP[0].append(Umathcal_at_beta_A)
         # get global util results under dempar at selection rate beta_B
         f_T_at_beta_B = get_dempar_policy_from_selection_rate(
             beta_B, inv_cdfs)
+        threshes_DP[1].append(f_T_at_beta_B.threshold_group_1)
+        out_threshes_DP[1].append(f_T_at_beta_B.threshold_group_0)
         simulation.intervene(f_T=f_T_at_beta_B)
         results = simulation.run(1, num_samps)
         check(results)
-        empirical_beta_B = results['T'][results['A'] == 1].float().mean().item()
-        print('DP', 'B', beta_B, f_T_at_beta_B.threshold_group_0,
-                f_T_at_beta_B.threshold_group_1, empirical_beta_B)
+        empirical_selection_rate_1 = \
+                results['T'][results['A'] == 1].float().mean().item()
+        selection_rates_DP[1].append(empirical_selection_rate_1)
         Umathcal_at_beta_B = results['Umathcal'].item()
         utility_curves_DP[1].append(Umathcal_at_beta_B)
     utility_curves_DP = np.array(utility_curves_DP)
 
     # collect EqOpp results
     utility_curves_EO = [[], []]
+    selection_rates_EO = [[], []]
+    threshes_EO = [[], []]  # empirical in-group threshes
+    out_threshes_EO = [[], []]  # empirical out-group threshes
     for i in tqdm(range(len(rate_index_A))):
         beta_A = rate_index_A[i]
         beta_B = rate_index_B[i]
         # get global util results under dempar at selection rate beta_A
         f_T_at_beta_A = get_eqopp_policy_from_selection_rate(
             beta_A, loan_repaid_probs, pis, scores)
+        threshes_EO[0].append(f_T_at_beta_A.threshold_group_0)
+        out_threshes_EO[0].append(f_T_at_beta_A.threshold_group_1)
         simulation.intervene(f_T=f_T_at_beta_A)
         results = simulation.run(1, num_samps)
         check(results)
-        # TODO: fix this
-        empirical_beta_A = results['T'][
-                (results['A'] == 1) & (results['Y'] == 1)
-                ].float().mean().item()
-        print('EO', 'A', beta_A, f_T_at_beta_A.threshold_group_0,
-                f_T_at_beta_A.threshold_group_1, empirical_beta_A)
+        empirical_selection_rate_0 = \
+                results['T'][results['A'] == 0].float().mean().item()
+        selection_rates_EO[0].append(empirical_selection_rate_0)
         Umathcal_at_beta_A = results['Umathcal'].item()
         utility_curves_EO[0].append(Umathcal_at_beta_A)
         # get global util results under dempar at selection rate beta_B
         f_T_at_beta_B = get_eqopp_policy_from_selection_rate(
-            beta_B, loan_repaid_probs, pis, scores, A=False)
+            beta_B, loan_repaid_probs, pis, scores)
+        threshes_EO[1].append(f_T_at_beta_B.threshold_group_1)
+        out_threshes_EO[1].append(f_T_at_beta_B.threshold_group_0)
         simulation.intervene(f_T=f_T_at_beta_B)
         results = simulation.run(1, num_samps)
         check(results)
-        empirical_beta_B = results['T'][
-                (results['A'] == 1) & (results['Y'] == 1)
-                ].float().mean().item()
-        print('EO', 'B', beta_B, f_T_at_beta_B.threshold_group_0,
-                f_T_at_beta_B.threshold_group_1, empirical_beta_B)
-#        import pdb
-#        pdb.set_trace()
+        empirical_selection_rate_1 = \
+                results['T'][results['A'] == 1].float().mean().item()
+        selection_rates_EO[1].append(empirical_selection_rate_1)
         Umathcal_at_beta_B = results['Umathcal'].item()
         utility_curves_EO[1].append(Umathcal_at_beta_B)
     utility_curves_EO = np.array(utility_curves_EO)
@@ -275,13 +293,14 @@ def main(unused_argv):
     plot_new_plot(
         threshold,
         scores,
-        rate_index_A,
-        rate_index_B,
         outcome_curve_A,
         outcome_curve_B,
         utility_curves_MP,
         utility_curves_DP,
         utility_curves_EO,
+        threshes_MP,
+        threshes_DP,
+        threshes_EO,
         results_dir)
 
     results.update(dict(
@@ -313,8 +332,6 @@ def main(unused_argv):
     # Finally, write gin config to disk
     with open(os.path.join(results_dir, 'config.gin'), 'w') as f:
         f.write(gin.operative_config_str())
-
-    # TODO(creager): possibly change plotting code
 
 if __name__ == "__main__":
     app.run(main)

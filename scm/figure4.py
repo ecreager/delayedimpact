@@ -129,17 +129,6 @@ def main(unused_argv):
         [utility_curves[0] + util_MP[1], utility_curves[1]+ util_MP[0]]
         )
 
-    # plot cdfs
-    # TODO(creager): remove later
-    from utils.plots import _plot_cdfs
-    import fico
-    all_cdfs, performance, totals = fico.get_FICO_data('./data')
-    all_cdfs = all_cdfs.drop(all_cdfs.index[-1])
-    performance = performance.drop(performance.index[-1])
-    ############################################################################
-    cdfs = all_cdfs[["White", "Black"]]
-    _plot_cdfs(cdfs.index, cdfs.values.T, 'dempar')
-
     # collect DemPar results
     utility_curves_DP = [[], []]
     for i in tqdm(range(len(rate_index_A))):
@@ -151,9 +140,6 @@ def main(unused_argv):
         simulation.intervene(f_T=f_T_at_beta_A)
         results = simulation.run(1, num_samps)
         check(results)
-        empirical_beta_A = results['T'][results['A'] == 0].float().mean().item()
-        print('DP', 'A', beta_A, f_T_at_beta_A.threshold_group_0,
-                f_T_at_beta_A.threshold_group_1, empirical_beta_A)
         Umathcal_at_beta_A = results['Umathcal'].item()
         utility_curves_DP[0].append(Umathcal_at_beta_A)
         # get global util results under dempar at selection rate beta_B
@@ -162,9 +148,6 @@ def main(unused_argv):
         simulation.intervene(f_T=f_T_at_beta_B)
         results = simulation.run(1, num_samps)
         check(results)
-        empirical_beta_B = results['T'][results['A'] == 1].float().mean().item()
-        print('DP', 'B', beta_B, f_T_at_beta_B.threshold_group_0,
-                f_T_at_beta_B.threshold_group_1, empirical_beta_B)
         Umathcal_at_beta_B = results['Umathcal'].item()
         utility_curves_DP[1].append(Umathcal_at_beta_B)
     utility_curves_DP = np.array(utility_curves_DP)
@@ -180,31 +163,14 @@ def main(unused_argv):
         simulation.intervene(f_T=f_T_at_beta_A)
         results = simulation.run(1, num_samps)
         check(results)
-        empirical_beta_A = results['T'][
-                (results['A'] == 1) & (results['Y'] == 1)
-                ].float().mean().item()
-#        import pdb
-#        pdb.set_trace()
-        print('EO', 'A', beta_A, f_T_at_beta_A.threshold_group_0,
-                f_T_at_beta_A.threshold_group_1, empirical_beta_A)
-        # TODO(creager): double check that each policy yielded the expected
-        #                empirical selection rate (beta_A and beta_B)
         Umathcal_at_beta_A = results['Umathcal'].item()
-        # TODO(creager): make sure above scalar gives me what i expect...
         utility_curves_EO[0].append(Umathcal_at_beta_A)
         # get global util results under dempar at selection rate beta_B
         f_T_at_beta_B = get_eqopp_policy_from_selection_rate(
-            beta_B, loan_repaid_probs, pis, scores, A=False)
+            beta_B, loan_repaid_probs, pis, scores)
         simulation.intervene(f_T=f_T_at_beta_B)
         results = simulation.run(1, num_samps)
         check(results)
-        empirical_beta_B = results['T'][
-                (results['A'] == 1) & (results['Y'] == 1)
-                ].float().mean().item()
-        print('EO', 'B', beta_B, f_T_at_beta_B.threshold_group_0,
-                f_T_at_beta_B.threshold_group_1, empirical_beta_B)
-        # TODO(creager): double check that each policy yielded the expected
-        #                empirical selection rate (beta_A and beta_B)
         Umathcal_at_beta_B = results['Umathcal'].item()
         utility_curves_EO[1].append(Umathcal_at_beta_B)
     utility_curves_EO = np.array(utility_curves_EO)

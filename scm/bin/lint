@@ -1,0 +1,8 @@
+#!/bin/bash
+# This script lints all the code it the repo minus the original commit due to
+# Liu et al 2018.
+find . -name "*.py" \
+  | grep -v "./distribution_to_loans_outcomes.py" \
+  | grep -v "./fico.py" \
+  | grep -v "./solve_credit.py" \
+  | xargs python -m pylint

@@ -268,7 +268,7 @@ def main(unused_argv):
 if __name__ == "__main__":
     FLAGS = flags.FLAGS
     flags.DEFINE_string(
-        'gin_file', './config/multi_step_simulation.gin', 'Path of config file.')
+        'gin_file', './config/multi_step_simulation.gin', 'Config file path.')
     flags.DEFINE_multi_string(
         'gin_param', None, 'Newline separated list of Gin parameter bindings.')
 

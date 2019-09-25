@@ -6,7 +6,6 @@ import pandas as pd
 import distribution_to_loans_outcomes as dlo
 from structural_eqns import ThresholdLoanPolicy
 from utils.data import get_inv_cdf_fns
-from utils.plots import _plot_cdfs
 
 @gin.configurable
 def get_policy(loan_repaid_probs,
@@ -42,8 +41,7 @@ def get_dempar_policy_from_selection_rate(selection_rate, inv_cdfs):
 def get_eqopp_policy_from_selection_rate(selection_rate,
                                          loan_repaid_probs,
                                          pis,
-                                         scores,
-                                         A=True):
+                                         scores):
     """Return policy with specified selection rate on Y=1 for both groups."""
     # compute P(X, Y=1|A)
     p_X_Yeq1_cond_A = np.array([
@@ -56,19 +54,6 @@ def get_eqopp_policy_from_selection_rate(selection_rate,
     p_X_cond_Yeq1_A = \
         p_X_Yeq1_cond_A / p_X_Yeq1_cond_A.sum(axis=1, keepdims=True)
     cdfs = np.cumsum(p_X_cond_Yeq1_A, axis=1)
-    tag = 'eqopp-a' if A else 'eqopp-B'
-    #_plot_cdfs(scores, cdfs, tag)
     cdfs = pd.DataFrame(data=cdfs.T, index=scores, columns=('Black', 'White'))
     new_inv_cdfs = get_inv_cdf_fns(cdfs)
-    # TODO(creager): Determine whether this is what we want. this policy yields
-    #                the desired selection rate, but only for the Y=0 subgroups.
-    #                An alternative would be setting the thresholds for both
-    #                groups such that (a) the selection rates match on the Y=1
-    #                subgroups (but don't necessarily equal the selection_rate)
-    #                argument AND (b) selection rate for ONE of the groups
-    #                matches selection_rate. Note that this would require
-    #                specifying which group should take selection_rate as its
-    #                global selection rate as a function argument.
-    # NOTE: an alternative would be to simply reorder the plot x-axis by the
-    #       EMPIRICAL selection rates (measured for whole group not just Y=1)
     return get_dempar_policy_from_selection_rate(selection_rate, new_inv_cdfs)

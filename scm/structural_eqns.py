@@ -293,9 +293,5 @@ class ThresholdScore(StructuralEqn):
 
     def compute_output(self, exogenous_noise, X):  # pylint: disable=arguments-differ
         """Threshold X."""
-#        print(X)
         output = torch.clamp(X, self.score_threshold)
-#        print(output)
-#        print(X)
-#        1/0
         return output

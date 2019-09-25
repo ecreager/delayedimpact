@@ -38,6 +38,7 @@ def query_parameters(
         seed=gin.REQUIRED,
         results_dir=gin.REQUIRED
         ):
+    """Returns leftover gin config parameters."""
     return num_steps, num_samps, seed, results_dir
 
 
@@ -46,10 +47,6 @@ def main(unused_argv):
     del unused_argv
     gin.parse_config_files_and_bindings([FLAGS.gin_file], FLAGS.gin_param)
 
-#    seed = gin.query_parameter('%seed')
-#    results_dir = gin.query_parameter('%results_dir')
-#    num_samps = gin.query_parameter('%num_samps')
-#    num_steps = gin.query_parameter('%num_steps')
     num_steps, num_samps, seed, results_dir = query_parameters()
 
     results_dir = os.path.normpath(results_dir)
