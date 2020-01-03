@@ -1,6 +1,9 @@
 #!/bin/bash
+mkdir /tmp/delayedimpact
+
 python scm/fico_figures.py \
   --gin_file=scm/config/default.gin \
-  --gin_param="data_dir='./scm/data/'"
+  --gin_param="data_dir='./scm/data/'" \
+  --gin_param="results_dir='/tmp/delayedimpact'"
 
 python -m unittest scm/reproducibility_test.py
