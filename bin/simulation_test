@@ -1,0 +1,33 @@
+#!/bin/bash
+
+python scm/simulation.py --gin_file=./scm/config/one-quarter.gin \
+  --gin_param="policy_name='maxprof'" \
+  --gin_param="results_dir='./scm/results/python/simulation/situation1/maxprof'" \
+  --gin_param="data_dir='./scm/data'"
+
+python scm/simulation.py --gin_file=./scm/config/one-quarter.gin \
+  --gin_param='policy_name="dempar"' \
+  --gin_param='results_dir="./scm/results/python/simulation/situation1/dempar"' \
+  --gin_param="data_dir='./scm/data'"
+
+python scm/simulation.py --gin_file=./scm/config/one-quarter.gin \
+  --gin_param="policy_name='eqopp'" \
+  --gin_param="results_dir='./scm/results/python/simulation/situation1/eqopp'" \
+  --gin_param="data_dir='./scm/data'"
+
+python scm/simulation.py --gin_file=./scm/config/one-tenth.gin \
+  --gin_param="policy_name='maxprof'" \
+  --gin_param="results_dir='./scm/results/python/simulation/situation2/maxprof'" \
+  --gin_param="data_dir='./scm/data'"
+
+python scm/simulation.py --gin_file=./scm/config/one-tenth.gin \
+  --gin_param="policy_name='dempar'" \
+  --gin_param="results_dir='./scm/results/python/simulation/situation2/dempar'" \
+  --gin_param="data_dir='./scm/data'"
+
+python scm/simulation.py --gin_file=./scm/config/one-tenth.gin \
+  --gin_param="policy_name='eqopp'" \
+  --gin_param="results_dir='./scm/results/python/simulation/situation2/eqopp'" \
+  --gin_param="data_dir='./scm/data'"
+
+python -m unittest scm/simulation_test.py

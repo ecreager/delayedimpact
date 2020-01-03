@@ -1,0 +1,6 @@
+#!/bin/bash
+python scm/fico_figures.py \
+  --gin_file=scm/config/default.gin \
+  --gin_param="data_dir='./scm/data/'"
+
+python -m unittest scm/reproducibility_test.py

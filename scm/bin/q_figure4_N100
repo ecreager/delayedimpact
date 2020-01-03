@@ -1,4 +1,0 @@
-#!/bin/bash
-srun -p cpu --mem=16G python figure4.py  \
-  --gin_param="num_samps=100" \
-  --gin_param="plot_figure4.basename='figure-4-empirical.N=100.pdf'"
